@@ -6,7 +6,7 @@
 /*   By: acoromin@student.42barcelona.com           +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/08/24 14:22:57 by acoromin          #+#    #+#             */
-/*   Updated: 2026/08/28 18:29:40 by acoromin         ###   ########.fr       */
+/*   Updated: 2026/09/12 17:09:42 by acoromin         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -40,9 +40,13 @@ struct s_data
 	long			start_time;
 	pthread_mutex_t	start_mutex;
 	pthread_cond_t	start_cond;
+	int				simulation_over;
+	pthread_mutex_t	stop_mutex;
 	t_dongle		*dongles;
 	t_coder			*coders;
 	pthread_mutex_t	print_mutex;
+	int				request_counter;
+	pthread_mutex_t	request_mutex;
 };
 
 struct s_dongle
@@ -51,18 +55,34 @@ struct s_dongle
 	int				available;
 	long			cooldown_until;
 	pthread_mutex_t	mutex;
+	t_heap			waiters;
 };
 
 struct s_coder
 {
 	int				id;
 	pthread_t		thread;
+	pthread_mutex_t	state_mutex;
 	int				compiles_done;
 	long			last_compile_start;
 	t_dongle		*left_dongle;
 	t_dongle		*right_dongle;
 	t_data			*data;
+	t_request		request;
 };
+
+typedef struct s_request
+{
+	long	order;
+	long	deadline;
+}	t_request;
+
+typedef struct s_heap
+{
+	t_coder	**items;
+	int		size;
+	int		capacity;
+}	t_heap;
 
 long	get_time_ms(void);
 int		init_simulation(t_data *data);
@@ -72,5 +92,10 @@ int		run_simulation(t_data *data);
 void	cleanup_sync(t_data *data);
 void	cleanup_coders(t_data *data);
 long	get_time_ms(void);
+void	set_simulation_over(t_data *data);
+int		is_simulation_over(t_data *data);
+void	*referee_routine(void *arg);
+int		take_dongles(t_coder *coder);
+int		heap_push(t_heap *heap, t_coder *coder);
 
 #endif

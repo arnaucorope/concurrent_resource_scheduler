@@ -6,7 +6,7 @@
 /*   By: acoromin@student.42barcelona.com           +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/08/27 17:01:02 by acoromin          #+#    #+#             */
-/*   Updated: 2026/08/28 18:43:19 by acoromin         ###   ########.fr       */
+/*   Updated: 2026/09/10 16:24:31 by acoromin         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -79,5 +79,7 @@ int	run_simulation(t_data *data)
 		return (0);
 	}
 	start_threads(data);
+	join_created_coders(data, data->number_of_coders);
+	pthread_join(referee, NULL);
 	return (1);
 }
