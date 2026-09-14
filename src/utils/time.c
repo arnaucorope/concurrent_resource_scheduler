@@ -1,32 +1,35 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   main.c                                             :+:      :+:    :+:   */
+/*   time.c                                             :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: acoromin@student.42barcelona.com           +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2026/08/24 15:26:05 by acoromin          #+#    #+#             */
-/*   Updated: 2026/08/27 16:33:48 by acoromin         ###   ########.fr       */
+/*   Created: 2026/08/27 15:46:37 by acoromin          #+#    #+#             */
+/*   Updated: 2026/09/13 19:45:31 by acoromin         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "codexion.h"
-#include "parse.h"
-#include <stdio.h>
 
-int	main(int argc, char **argv)
+long	get_time_ms(void)
 {
-	t_parse_error	error;
-	t_data			data;
+	struct timeval	tv;
 
-	error = parse_args(argc, argv);
-	if (error != PARSE_OK)
+	gettimeofday(&tv, NULL);
+	return (tv.tv_sec * 1000L + tv.tv_usec / 1000);
+}
+
+int	sleep_simulation(t_data *data, long duration_ms)
+{
+	long	start;
+
+	start = get_time_ms();
+	while (!is_simulation_over(data))
 	{
-		print_parse_error(error);
-		return (0);
+		if (get_time_ms() - start >= duration_ms)
+			return (1);
+		usleep(1000);
 	}
-	convert_arguments(argv, &data);
-	if (!init_simulation(data))
-		return (1);
 	return (0);
 }

@@ -1,22 +1,37 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   time.c                                             :+:      :+:    :+:   */
+/*   main.c                                             :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: acoromin@student.42barcelona.com           +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2026/08/27 15:46:37 by acoromin          #+#    #+#             */
-/*   Updated: 2026/08/27 16:04:29 by acoromin         ###   ########.fr       */
+/*   Created: 2026/08/24 15:26:05 by acoromin          #+#    #+#             */
+/*   Updated: 2026/09/14 11:09:52 by acoromin         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "codexion.h"
-#include <sys/time.h>
+#include "parse.h"
 
-long	get_time_ms(void)
+int	main(int argc, char **argv)
 {
-	struct timeval	tv;
+	t_parse_error	error;
+	t_data			data;
 
-	gettimeofday(&tv, NULL);
-	return (tv.tv_sec * 1000L + tv.tv_usec / 1000);
+	error = parse_args(argc, argv);
+	if (error != PARSE_OK)
+	{
+		print_parse_error(error);
+		return (1);
+	}
+	convert_arguments(argv, &data);
+	if (!init_simulation(&data))
+		return (1);
+	if (!run_simulation(&data))
+	{
+		cleanup_simulation(&data);
+		return (1);
+	}
+	cleanup_simulation(&data);
+	return (0);
 }

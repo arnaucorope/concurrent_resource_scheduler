@@ -6,7 +6,7 @@
 /*   By: acoromin@student.42barcelona.com           +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/08/26 18:21:50 by acoromin          #+#    #+#             */
-/*   Updated: 2026/09/12 15:51:22 by acoromin         ###   ########.fr       */
+/*   Updated: 2026/09/14 13:23:05 by acoromin         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -27,21 +27,12 @@ static int	init_dongles(t_data *data)
 		data->dongles[i].cooldown_until = 0;
 		data->dongles[i].waiters.items = NULL;
 		data->dongles[i].waiters.size = 0;
-		data->dongles[i].waiters.capacity = data->number_of_coders;
-		data->dongles[i].waiters.items = malloc(sizeof(t_coder *)
-				* data->number_of_coders);
-		if (!data->dongles[i].waiters.items)
-		{
-			cleanup_dongles(data, i);
-			return (0);
-		}
+		data->dongles[i].waiters.capacity = 2;
 		if (pthread_mutex_init(&data->dongles[i].mutex, NULL) != 0)
-		{
-			free(data->dongles[i].waiters.items);
-			data->dongles[i].waiters.items = NULL;
-			cleanup_dongles(data, i);
-			return (0);
-		}
+			return (cleanup_dongles(data, i), 0);
+		data->dongles[i].waiters.items = malloc(sizeof(t_coder *) * 2);
+		if (!data->dongles[i].waiters.items)
+			return (cleanup_dongles(data, i + 1), 0);
 		i++;
 	}
 	return (1);
@@ -67,15 +58,22 @@ static int	init_coders(t_data *data)
 		data->coders[i].request.order = 0;
 		data->coders[i].request.deadline = 0;
 		if (pthread_mutex_init(&data->coders[i].state_mutex, NULL) != 0)
-		{
-			cleanup_coder_mutexes(data, i);
-			free(data->coders);
-			data->coders = NULL;
-			return (0);
-		}
+			return (cleanup_coders(data, i), 0);
 		i++;
 	}
 	return (1);
+}
+
+static void	cleanup_sync_partial(t_data *data, int step)
+{
+	if (step >= 4)
+		pthread_mutex_destroy(&data->stop_mutex);
+	if (step >= 3)
+		pthread_mutex_destroy(&data->print_mutex);
+	if (step >= 2)
+		pthread_cond_destroy(&data->start_cond);
+	if (step >= 1)
+		pthread_mutex_destroy(&data->start_mutex);
 }
 
 static int	init_sync(t_data *data)
@@ -83,31 +81,13 @@ static int	init_sync(t_data *data)
 	if (pthread_mutex_init(&data->start_mutex, NULL) != 0)
 		return (0);
 	if (pthread_cond_init(&data->start_cond, NULL) != 0)
-	{
-		pthread_mutex_destroy(&data->start_mutex);
-		return (0);
-	}
+		return (cleanup_sync_partial(data, 1), 0);
 	if (pthread_mutex_init(&data->print_mutex, NULL) != 0)
-	{
-		pthread_cond_destroy(&data->start_cond);
-		pthread_mutex_destroy(&data->start_mutex);
-		return (0);
-	}
+		return (cleanup_sync_partial(data, 2), 0);
 	if (pthread_mutex_init(&data->stop_mutex, NULL) != 0)
-	{
-		pthread_mutex_destroy(&data->print_mutex);
-		pthread_cond_destroy(&data->start_cond);
-		pthread_mutex_destroy(&data->start_mutex);
-		return (0);
-	}
+		return (cleanup_sync_partial(data, 3), 0);
 	if (pthread_mutex_init(&data->request_mutex, NULL) != 0)
-	{
-		pthread_mutex_destroy(&data->stop_mutex);
-		pthread_mutex_destroy(&data->print_mutex);
-		pthread_cond_destroy(&data->start_cond);
-		pthread_mutex_destroy(&data->start_mutex);
-		return (0);
-	}
+		return (cleanup_sync_partial(data, 4), 0);
 	return (1);
 }
 
@@ -119,10 +99,7 @@ int	init_simulation(t_data *data)
 	if (!init_sync(data))
 		return (0);
 	if (!init_dongles(data))
-	{
-		cleanup_sync(data);
-		return (0);
-	}
+		return (cleanup_sync(data), 0);
 	if (!init_coders(data))
 	{
 		cleanup_dongles(data, data->number_of_coders);

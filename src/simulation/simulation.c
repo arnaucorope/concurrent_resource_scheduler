@@ -6,7 +6,7 @@
 /*   By: acoromin@student.42barcelona.com           +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/08/27 17:01:02 by acoromin          #+#    #+#             */
-/*   Updated: 2026/09/10 16:24:31 by acoromin         ###   ########.fr       */
+/*   Updated: 2026/09/14 12:18:05 by acoromin         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -32,7 +32,7 @@ int	create_coder_threads(t_data *data)
 	while (i < data->number_of_coders)
 	{
 		if (pthread_create(&data->coders[i].thread, NULL,
-			coder_routine, &data->coders[i]) != 0)
+				coder_routine, &data->coders[i]) != 0)
 		{
 			pthread_mutex_lock(&data->start_mutex);
 			data->start_ready = -1;

@@ -6,7 +6,7 @@
 /*   By: acoromin@student.42barcelona.com           +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/12 15:54:11 by acoromin          #+#    #+#             */
-/*   Updated: 2026/09/12 18:04:49 by acoromin         ###   ########.fr       */
+/*   Updated: 2026/09/14 11:04:40 by acoromin         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -23,62 +23,49 @@ static int	has_priority(t_coder *a, t_coder *b)
 
 int	heap_push(t_heap *heap, t_coder *coder)
 {
-	int		i;
-	int		parent;
 	t_coder	*tmp;
 
 	if (heap->size >= heap->capacity)
 		return (0);
-	i = heap->size;
-	heap->items[i] = coder;
+	heap->items[heap->size] = coder;
 	heap->size++;
-	while (i > 0)
+	if (heap->size == 2
+		&& has_priority(heap->items[1], heap->items[0]))
 	{
-		parent = (i - 1) / 2;
-		if (!has_priority(heap->items[i], heap->items[parent]))
-			break ;
-		tmp = heap->items[i];
-		heap->items[i] = heap->items[parent];
-		heap->items[parent] = tmp;
-		i = parent;
+		tmp = heap->items[0];
+		heap->items[0] = heap->items[1];
+		heap->items[1] = tmp;
 	}
 	return (1);
 }
 
-t_coder	*heap_pop(t_heap *heap)
+void	heap_pop(t_heap *heap)
 {
-	t_coder	*result;
-	int		i;
-	int		left;
-	int		right;
-	int		best;
-	t_coder	*tmp;
+	if (heap->size == 0)
+		return ;
+	heap->size--;
+	if (heap->size == 1)
+		heap->items[0] = heap->items[1];
+}
 
+t_coder	*heap_peek(t_heap *heap)
+{
 	if (heap->size == 0)
 		return (NULL);
-	result = heap->items[0];
-	heap->size--;
+	return (heap->items[0]);
+}
+
+void	heap_remove(t_heap *heap, t_coder *coder)
+{
 	if (heap->size == 0)
-		return (result);
-	heap->items[0] = heap->items[heap->size];
-	i = 0;
-	while (1)
+		return ;
+	if (heap->items[0] == coder)
 	{
-		left = i * 2 + 1;
-		right = i * 2 + 2;
-		best = i;
-		if (left < heap->size
-			&& has_priority(heap->items[left], heap->items[best]))
-			best = left;
-		if (right < heap->size
-			&& has_priority(heap->items[right], heap->items[best]))
-			best = right;
-		if (best == i)
-			break ;
-		tmp = heap->items[i];
-		heap->items[i] = heap->items[best];
-		heap->items[best] = tmp;
-		i = best;
+		heap->size--;
+		if (heap->size == 1)
+			heap->items[0] = heap->items[1];
+		return ;
 	}
-	return (result);
+	if (heap->size == 2 && heap->items[1] == coder)
+		heap->size--;
 }
