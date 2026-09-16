@@ -6,7 +6,7 @@
 /*   By: acoromin@student.42barcelona.com           +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/08/28 16:57:21 by acoromin          #+#    #+#             */
-/*   Updated: 2026/09/14 12:27:15 by acoromin         ###   ########.fr       */
+/*   Updated: 2026/09/16 20:02:56 by acoromin         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -74,6 +74,8 @@ void	*coder_routine(void *arg)
 	coder = (t_coder *)arg;
 	if (!wait_for_start(coder))
 		return (NULL);
+	if (coder->id % 2 != 0)
+		usleep(2000);
 	while (!is_simulation_over(coder->data))
 	{
 		if (!coder_cycle(coder))
