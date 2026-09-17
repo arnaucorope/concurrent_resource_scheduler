@@ -72,6 +72,17 @@ The earliest deadline has the highest priority. If two deadlines are equal, the 
 
 Each dongle owns a priority queue containing the coders currently waiting for it.
 
+### Initial startup staggering
+
+To reduce contention when all coder threads start simultaneously, odd-numbered
+coders wait briefly before their first scheduling attempt.
+
+This gives non-adjacent even-numbered coders a small head start when registering
+their initial requests, reducing contention for shared dongles.
+
+The stagger is applied only once at startup. After that, all coders follow the
+normal FIFO or EDF scheduling policy.
+
 ## Blocking cases handled
 
 ### Deadlock prevention

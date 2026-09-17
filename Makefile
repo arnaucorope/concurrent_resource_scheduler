@@ -6,7 +6,7 @@
 #    By: acoromin@student.42barcelona.com           +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/09/14 11:10:14 by acoromin          #+#    #+#              #
-#    Updated: 2026/09/15 14:40:56 by acoromin         ###   ########.fr        #
+#    Updated: 2026/09/17 12:51:41 by acoromin         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -41,7 +41,7 @@ all: $(NAME)
 $(NAME): $(OBJ)
 	$(CC) $(CFLAGS) $(OBJ) -o $(NAME)
 
-%.o: %.c includes/parse.h \ includes/codexion.h
+%.o: %.c includes/parse.h includes/codexion.h
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 clean:

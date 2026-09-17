@@ -6,7 +6,7 @@
 /*   By: acoromin@student.42barcelona.com           +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/12 12:19:13 by acoromin          #+#    #+#             */
-/*   Updated: 2026/09/16 20:11:22 by acoromin         ###   ########.fr       */
+/*   Updated: 2026/09/17 12:58:58 by acoromin         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -59,7 +59,7 @@ int	take_dongles(t_coder *coder)
 	{
 		if (try_take_dongles(coder))
 			return (1);
-		usleep(1000);
+		usleep(500);
 	}
 	return (0);
 }
