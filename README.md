@@ -1,246 +1,116 @@
-*This project has been created as part of the 42 curriculum by acoromin.*
+# Concurrent Resource Scheduler
 
-# Codexion
+A multithreaded simulation in C that coordinates access to shared resources using POSIX threads, mutexes, and FIFO or Earliest Deadline First scheduling.
 
-## Description
+Each worker, called a *coder*, cycles through compiling, debugging, and refactoring. Compiling requires two neighboring USB dongles, shared with other coders in a ring. Released dongles enter a configurable cooldown before they can be reused.
 
-Codexion is a multithreaded simulation written in C with POSIX threads.
+A referee thread monitors progress. The simulation ends when a coder misses its burnout deadline or every coder has completed the requested number of compilations. The executable retains its original name, `codexion`.
 
-Each coder is represented by its own thread and repeatedly alternates between compiling, debugging, and refactoring. To compile, a coder must obtain its two neighboring USB dongles. Dongles are shared resources, have a cooldown after being released, and arbitrate competing requests according to one of two scheduling policies:
+## Build and run
 
-- `fifo`: oldest request first.
-- `edf`: earliest burnout deadline first.
-
-A separate referee thread monitors coder deadlines and the required number of compiles. The simulation stops when a coder burns out or when every coder reaches the requested compile count.
-
-The project focuses on concurrency, synchronization, fair resource arbitration, deadlock prevention, starvation avoidance, timing precision, and safe cleanup.
-
-## Instructions
-
-### Compilation
+Requires `make` and a C compiler with POSIX threads support.
 
 ```bash
 make
-```
-
-The project is compiled with:
-
-```text
--Wall -Wextra -Werror -pthread
-```
-
-Available Makefile rules:
-
-```bash
-make
-make clean
-make fclean
-make re
-```
-
-### Execution
-
-```bash
-./codexion <number_of_coders> <time_to_burnout> <time_to_compile> <time_to_debug> <time_to_refactor> <number_of_compiles_required> <dongle_cooldown> <scheduler>
-```
-
-All time values are expressed in milliseconds. The scheduler must be exactly `fifo` or `edf`.
-
-Example:
-
-```bash
 ./codexion 5 3000 100 100 100 3 50 edf
 ```
 
-## Scheduling
+The example starts five coders with a 3,000 ms burnout limit, 100 ms for each work phase, a target of three compilations per coder, and a 50 ms dongle cooldown.
 
-### FIFO
+```text
+./codexion <coders> <burnout_ms> <compile_ms> <debug_ms> <refactor_ms> <compiles_required> <cooldown_ms> <fifo|edf>
+```
 
-FIFO orders requests by creation order. Each request receives a monotonically increasing `order` value protected by `request_mutex`.
+| Argument | Meaning |
+| --- | --- |
+| `coders` | Number of worker threads and shared dongles; must be at least 1 |
+| `burnout_ms` | Maximum elapsed time since a coder's last compilation start |
+| `compile_ms` | Compilation duration while holding both dongles |
+| `debug_ms` | Debugging duration after releasing the dongles |
+| `refactor_ms` | Refactoring duration before requesting them again |
+| `compiles_required` | Minimum completed compilations per coder before normal termination |
+| `cooldown_ms` | Delay before a released dongle becomes available for reuse |
+| `fifo` / `edf` | Resource scheduling policy |
 
-The request with the lowest order value has the highest priority.
+Numeric arguments are non-negative integers up to `INT_MAX`, except `coders`, which must be positive. A compilation target of zero exits without starting the worker threads.
 
-### EDF
+Output lines contain elapsed milliseconds, a coder ID, and an event such as `is compiling` or `burned out`.
 
-EDF means Earliest Deadline First. The request deadline is calculated as:
+The Makefile compiles with `-Wall -Wextra -Werror -pthread`. Use `make clean` to remove object files, `make fclean` to also remove the executable, and `make re` to rebuild.
+
+## Resource scheduling
+
+Each dongle maintains a small priority queue for its neighboring coders. A coder registers a request with both dongles and can acquire them only when it:
+
+- heads both queues;
+- finds both dongles available;
+- finds both cooldown periods complete.
+
+Availability is checked and updated while holding both dongle mutexes. A coder therefore acquires the pair together instead of holding one resource while waiting for the other.
+
+| Policy | Request priority |
+| --- | --- |
+| FIFO | Lowest request sequence number first; sequence numbers are assigned under a shared mutex |
+| EDF | Earliest deadline first, with coder ID as the tie-breaker |
+
+The EDF deadline is computed when the request is created:
 
 ```text
 deadline = last_compile_start + time_to_burnout
 ```
 
-The earliest deadline has the highest priority. If two deadlines are equal, the coder ID is used as a deterministic tie-breaker.
+After compilation, both resources are released with `cooldown_until = release_time + dongle_cooldown`. Waiting coders retry acquisition with a short sleep between attempts.
 
-Each dongle owns a priority queue containing the coders currently waiting for it.
+## Synchronization and lifecycle
 
-### Initial startup staggering
+### Coordinated startup
 
-To reduce contention when all coder threads start simultaneously, odd-numbered
-coders wait briefly before their first scheduling attempt.
+Workers and the referee wait on a condition variable. Once all threads have been created, the simulation publishes a common start time and wakes them with `pthread_cond_broadcast()`. Odd-numbered coders delay their first attempt by 2 ms to reduce initial contention.
 
-This gives non-adjacent even-numbered coders a small head start when registering
-their initial requests, reducing contention for shared dongles.
+### Lock ordering and shared state
 
-The stagger is applied only once at startup. After that, all coders follow the
-normal FIFO or EDF scheduling policy.
+Whenever two dongle mutexes are needed, they are locked in ascending dongle-ID order and unlocked in reverse order. This removes circular waiting between those mutexes.
 
-## Blocking cases handled
+Synchronization is divided by responsibility:
 
-### Deadlock prevention
+| Mutex | Protected state |
+| --- | --- |
+| Per-dongle mutex | Availability, cooldown, and waiting requests |
+| Per-coder `state_mutex` | Last compilation start and completed compilation count |
+| `request_mutex` | FIFO request counter |
+| `start_mutex` | Startup state and condition-variable coordination |
+| `stop_mutex` | Simulation termination flag |
+| `print_mutex` | Serialized event output |
 
-A coder needs two shared dongles to compile. If different threads locked dongles in inconsistent orders, a circular wait could occur.
+### Monitoring and shutdown
 
-Whenever both dongle mutexes must be locked, Codexion always locks them in deterministic dongle-ID order:
+The referee checks each coder's last compilation start and completion count under that coder's state mutex. It sets the shared stop flag when a deadline is reached or all coders meet the compilation target.
 
-```text
-lower ID -> higher ID
-```
+Termination is cooperative: workers check the stop state during resource acquisition and timed waits. The main thread joins the workers and referee before cleanup. A coder can exceed its individual compilation target while waiting for the others to finish.
 
-Because every coder follows the same ordering, the circular-wait Coffman condition is removed and a mutex deadlock between neighboring coders is avoided.
+## Timing and boundary cases
 
-### Starvation prevention and fair arbitration
+- With one coder, only one dongle exists, so compilation cannot start and the coder eventually burns out.
+- Queue priorities make resource arbitration explicit; they do not guarantee that every timing configuration can meet its deadlines.
+- The referee and resource-acquisition loops use polling sleeps. Actual wake-up times depend on operating-system scheduling, so this is not a hard real-time scheduler.
+- Tight deadlines, resource cooldowns, and contention can cause burnout even when mutex acquisition itself is deadlock-free.
 
-Dongles are not granted simply to whichever thread happens to run first.
+## Code organization
 
-Each dongle maintains a priority queue. Requests are ordered according to the selected scheduler:
+| Location | Responsibility |
+| --- | --- |
+| `src/parse/` | Argument validation and conversion |
+| `src/init/` | Simulation data and synchronization initialization |
+| `src/simulation/coder.c` | Worker lifecycle and event logging |
+| `src/simulation/dongle*.c`, `heap.c` | Resource requests, priorities, acquisition, and release |
+| `src/simulation/referee.c` | Deadline and completion monitoring |
+| `src/simulation/simulation.c` | Thread creation, startup, and joining |
+| `src/utils/` | Timing, lock-order helpers, and cleanup |
 
-```text
-FIFO -> oldest request first
-EDF  -> earliest burnout deadline first
-```
+## Project background
 
-For equal EDF deadlines, coder ID provides a deterministic tie-breaker.
+Developed by **acoromin** as **Codexion**, part of the 42 curriculum.
 
-This gives competing coders an explicit and reproducible arbitration policy instead of relying on operating-system thread scheduling alone.
+Reference material includes POSIX threads documentation and the manual pages for `pthread_create`, `pthread_join`, mutexes, condition variables, `gettimeofday`, and `usleep`.
 
-### Dongle cooldown
-
-After release, a dongle cannot immediately be reused.
-
-Each dongle stores a timestamp:
-
-```text
-cooldown_until = release_time + dongle_cooldown
-```
-
-A coder may use the dongle only when the current time has reached that timestamp.
-
-### Precise burnout detection
-
-Burnout is monitored by a dedicated referee thread.
-
-Each coder stores `last_compile_start`. The referee reads this value under the coder's state mutex and compares it with:
-
-```text
-last_compile_start + time_to_burnout
-```
-
-When a deadline is reached, the referee sets the global stop state and prints the burnout event.
-
-### Log serialization
-
-All simulation output is protected by `print_mutex` so that two threads cannot interleave characters on the same output line.
-
-Normal coder logs also check the synchronized stop state before printing, preventing regular status messages after the simulation has ended.
-
-### Single-coder case
-
-With one coder there is only one dongle. Since compiling requires two dongles simultaneously, the coder cannot compile and eventually burns out.
-
-## Thread synchronization mechanisms
-
-Codexion uses `pthread_mutex_t` and `pthread_cond_t` to protect shared state and coordinate thread execution.
-
-### Dongle mutexes
-
-Each dongle owns a mutex protecting:
-
-- availability;
-- cooldown state;
-- its waiting priority queue.
-
-Any thread that reads or modifies those fields does so while holding the corresponding dongle mutex.
-
-When an operation needs both neighboring dongles, the mutexes are locked in deterministic ID order to prevent circular wait.
-
-### Coder state mutexes
-
-Each coder owns a `state_mutex` protecting state shared with the referee, including:
-
-```text
-last_compile_start
-compiles_done
-```
-
-The coder thread locks this mutex when updating its state, and the referee locks the same mutex when reading it. This prevents data races between the worker and monitor threads.
-
-### Global synchronization mutexes
-
-Codexion also uses dedicated mutexes for independent shared concerns:
-
-- `print_mutex`: serializes log output.
-- `stop_mutex`: protects the global simulation stop state.
-- `request_mutex`: protects the FIFO request counter.
-- `start_mutex`: protects the synchronized simulation start state.
-
-Separating these responsibilities avoids using one large global lock and reduces unnecessary contention.
-
-### Start condition variable
-
-Coder threads are created before the official simulation start and wait on a condition variable.
-
-The start state is protected by `start_mutex`. Once initialization is complete, the program publishes the common start time and wakes waiting threads with `pthread_cond_broadcast()`.
-
-This ensures that all coders and the referee share a consistent simulation starting point.
-
-### Referee communication
-
-The referee does not cancel coder threads directly.
-
-Instead, it communicates through synchronized shared state:
-
-```text
-referee detects burnout/completion
-        |
-        v
-sets simulation_over
-        |
-        v
-coder threads observe the stop state and exit
-```
-
-This keeps termination cooperative and thread-safe.
-
-No custom event abstraction is used; synchronization is implemented directly with POSIX mutexes, condition variables, and protected shared state.
-
-## Resources
-
-Useful references for this project include:
-
-- POSIX threads documentation.
-- Linux manual pages for:
-  - `pthread_create(3)`
-  - `pthread_join(3)`
-  - `pthread_mutex_init(3)`
-  - `pthread_mutex_lock(3)`
-  - `pthread_mutex_unlock(3)`
-  - `pthread_mutex_destroy(3)`
-  - `pthread_cond_init(3)`
-  - `pthread_cond_wait(3)`
-  - `pthread_cond_broadcast(3)`
-  - `pthread_cond_destroy(3)`
-  - `gettimeofday(2)`
-  - `usleep(3)`
-- Material about race conditions, deadlocks, Coffman's conditions, priority queues, FIFO scheduling, and Earliest Deadline First scheduling.
-
-### Use of AI
-
-AI was used as a learning and review tool during development, mainly for:
-
-- understanding POSIX threads, mutexes, and condition variables;
-- discussing FIFO and EDF scheduling;
-- reasoning about priority queues and shared-resource arbitration;
-- reviewing possible deadlocks, race conditions, and starvation cases;
-- reviewing initialization, cleanup, cooldown, and burnout logic;
-- designing stress tests and discussing observed concurrency behavior.
-
-The generated suggestions were reviewed, tested, and adapted before being integrated into the project.
+AI tools supported concept exploration, design discussions, code review, and stress-test design. Suggestions were reviewed, tested, and adapted during development.
