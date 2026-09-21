@@ -90,7 +90,7 @@ Termination is cooperative: workers check the stop state during resource acquisi
 
 ## Timing and boundary cases
 
-- With one coder, only one dongle exists, so compilation cannot start and the coder eventually burns out.
+- With one coder and a nonzero compilation target, only one dongle exists, so compilation cannot start and the coder eventually burns out.
 - Queue priorities make resource arbitration explicit; they do not guarantee that every timing configuration can meet its deadlines.
 - The referee and resource-acquisition loops use polling sleeps. Actual wake-up times depend on operating-system scheduling, so this is not a hard real-time scheduler.
 - Tight deadlines, resource cooldowns, and contention can cause burnout even when mutex acquisition itself is deadlock-free.
@@ -102,14 +102,14 @@ Termination is cooperative: workers check the stop state during resource acquisi
 | `src/parse/` | Argument validation and conversion |
 | `src/init/` | Simulation data and synchronization initialization |
 | `src/simulation/coder.c` | Worker lifecycle and event logging |
-| `src/simulation/dongle*.c`, `heap.c` | Resource requests, priorities, acquisition, and release |
+| `src/simulation/dongle*.c`, `src/simulation/heap.c` | Resource requests, priorities, acquisition, and release |
 | `src/simulation/referee.c` | Deadline and completion monitoring |
 | `src/simulation/simulation.c` | Thread creation, startup, and joining |
 | `src/utils/` | Timing, lock-order helpers, and cleanup |
 
 ## Project background
 
-Developed by **acoromin** as **Codexion**, part of the 42 curriculum.
+Developed by **Arnau Corominas Pérez (acoromin)** as **Codexion**, part of the 42 curriculum.
 
 Reference material includes POSIX threads documentation and the manual pages for `pthread_create`, `pthread_join`, mutexes, condition variables, `gettimeofday`, and `usleep`.
 
